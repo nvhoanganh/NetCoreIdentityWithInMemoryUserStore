@@ -6,10 +6,11 @@ using System.Security.Claims;
 using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.AspNetCore.Identity;
+using Microsoft.Extensions.Caching.Memory;
 
 namespace emptymvcwithidentity
 {
-    public class UserStore<TUser> : IUserLoginStore<TUser>,
+    public class InMemoryUserStore<TUser> : IUserLoginStore<TUser>,
           IUserClaimStore<TUser>,
           IUserRoleStore<TUser>,
           IUserPasswordStore<TUser>,
@@ -22,7 +23,21 @@ namespace emptymvcwithidentity
           IUserStore<TUser>
           where TUser : IdentityUser
     {
-        public IQueryable<TUser> Users => throw new System.NotImplementedException();
+        private readonly IMemoryCache cache;
+
+        public InMemoryUserStore(IMemoryCache cache)
+        {
+            this.cache = cache;
+        }
+
+        public IQueryable<TUser> Users
+        {
+            get
+            {
+                var db = this.DB();
+                return db.Values.AsQueryable();
+            }
+        }
 
         public Task AddClaimsAsync(TUser user, IEnumerable<Claim> claims, CancellationToken cancellationToken)
         {
@@ -41,27 +56,33 @@ namespace emptymvcwithidentity
 
         public Task<IdentityResult> CreateAsync(TUser user, CancellationToken cancellationToken)
         {
-            throw new System.NotImplementedException();
+            var db = this.DB();
+            db.Add(user.Id, user);
+            Save(db);
+            return Task.FromResult(IdentityResult.Success);
         }
 
         public Task<IdentityResult> DeleteAsync(TUser user, CancellationToken cancellationToken)
         {
-            throw new System.NotImplementedException();
+            var db = this.DB();
+            db.Remove(user.Id);
+            Save(db);
+            return Task.FromResult(IdentityResult.Success);
         }
 
         public void Dispose()
         {
-            Console.WriteLine("disposed method called");
         }
 
         public Task<TUser> FindByEmailAsync(string normalizedEmail, CancellationToken cancellationToken)
         {
-            throw new System.NotImplementedException();
+
+            return Task.FromResult(this.DB().Values.FirstOrDefault(x => x.NormalizedEmail == normalizedEmail));
         }
 
         public Task<TUser> FindByIdAsync(string userId, CancellationToken cancellationToken)
         {
-            throw new System.NotImplementedException();
+            return Task.FromResult(this.DB().Values.FirstOrDefault(x => x.Id == userId));
         }
 
         public Task<TUser> FindByLoginAsync(string loginProvider, string providerKey, CancellationToken cancellationToken)
@@ -71,37 +92,38 @@ namespace emptymvcwithidentity
 
         public Task<TUser> FindByNameAsync(string normalizedUserName, CancellationToken cancellationToken)
         {
-            throw new System.NotImplementedException();
+            return Task.FromResult(this.DB().Values.FirstOrDefault(x => x.NormalizedUserName == normalizedUserName));
         }
 
         public Task<int> GetAccessFailedCountAsync(TUser user, CancellationToken cancellationToken)
         {
-            throw new NotImplementedException();
+            return Task.FromResult(user.AccessFailedCount);
         }
 
         public Task<IList<Claim>> GetClaimsAsync(TUser user, CancellationToken cancellationToken)
         {
-            throw new System.NotImplementedException();
+            IList<Claim> result = new List<Claim>();
+            return Task.FromResult(result);
         }
 
         public Task<string> GetEmailAsync(TUser user, CancellationToken cancellationToken)
         {
-            throw new System.NotImplementedException();
+            return Task.FromResult(user.Email);
         }
 
         public Task<bool> GetEmailConfirmedAsync(TUser user, CancellationToken cancellationToken)
         {
-            throw new System.NotImplementedException();
+            return Task.FromResult(user.EmailConfirmed);
         }
 
         public Task<bool> GetLockoutEnabledAsync(TUser user, CancellationToken cancellationToken)
         {
-            throw new NotImplementedException();
+            return Task.FromResult(user.LockoutEnabled);
         }
 
         public Task<DateTimeOffset?> GetLockoutEndDateAsync(TUser user, CancellationToken cancellationToken)
         {
-            throw new NotImplementedException();
+            return Task.FromResult(user.LockoutEnd);
         }
 
         public Task<IList<UserLoginInfo>> GetLoginsAsync(TUser user, CancellationToken cancellationToken)
@@ -111,27 +133,27 @@ namespace emptymvcwithidentity
 
         public Task<string> GetNormalizedEmailAsync(TUser user, CancellationToken cancellationToken)
         {
-            throw new System.NotImplementedException();
+            return Task.FromResult(user.NormalizedEmail);
         }
 
         public Task<string> GetNormalizedUserNameAsync(TUser user, CancellationToken cancellationToken)
         {
-            throw new System.NotImplementedException();
+            return Task.FromResult(user.NormalizedUserName);
         }
 
         public Task<string> GetPasswordHashAsync(TUser user, CancellationToken cancellationToken)
         {
-            throw new System.NotImplementedException();
+            return Task.FromResult(user.PasswordHash);
         }
 
         public Task<string> GetPhoneNumberAsync(TUser user, CancellationToken cancellationToken)
         {
-            throw new System.NotImplementedException();
+            return Task.FromResult(user.PhoneNumber);
         }
 
         public Task<bool> GetPhoneNumberConfirmedAsync(TUser user, CancellationToken cancellationToken)
         {
-            throw new System.NotImplementedException();
+            return Task.FromResult(user.PhoneNumberConfirmed);
         }
 
         public Task<IList<string>> GetRolesAsync(TUser user, CancellationToken cancellationToken)
@@ -141,22 +163,22 @@ namespace emptymvcwithidentity
 
         public Task<string> GetSecurityStampAsync(TUser user, CancellationToken cancellationToken)
         {
-            throw new System.NotImplementedException();
+            return Task.FromResult(user.SecurityStamp);
         }
 
         public Task<bool> GetTwoFactorEnabledAsync(TUser user, CancellationToken cancellationToken)
         {
-            throw new System.NotImplementedException();
+            return Task.FromResult(user.TwoFactorEnabled);
         }
 
         public Task<string> GetUserIdAsync(TUser user, CancellationToken cancellationToken)
         {
-            throw new System.NotImplementedException();
+            return Task.FromResult(user.Id);
         }
 
         public Task<string> GetUserNameAsync(TUser user, CancellationToken cancellationToken)
         {
-            throw new System.NotImplementedException();
+            return Task.FromResult(user.UserName);
         }
 
         public Task<IList<TUser>> GetUsersForClaimAsync(Claim claim, CancellationToken cancellationToken)
@@ -171,12 +193,13 @@ namespace emptymvcwithidentity
 
         public Task<bool> HasPasswordAsync(TUser user, CancellationToken cancellationToken)
         {
-            throw new System.NotImplementedException();
+            return Task.FromResult(user.PasswordHash != null);
         }
 
         public Task<int> IncrementAccessFailedCountAsync(TUser user, CancellationToken cancellationToken)
         {
-            throw new NotImplementedException();
+            user.AccessFailedCount++;
+            return Task.FromResult(user.AccessFailedCount);
         }
 
         public Task<bool> IsInRoleAsync(TUser user, string roleName, CancellationToken cancellationToken)
@@ -206,72 +229,115 @@ namespace emptymvcwithidentity
 
         public Task ResetAccessFailedCountAsync(TUser user, CancellationToken cancellationToken)
         {
-            throw new NotImplementedException();
+            user.AccessFailedCount = 0;
+            return Task.CompletedTask;
         }
 
         public Task SetEmailAsync(TUser user, string email, CancellationToken cancellationToken)
         {
-            throw new System.NotImplementedException();
+            user.Email = email;
+            return Task.CompletedTask;
         }
 
         public Task SetEmailConfirmedAsync(TUser user, bool confirmed, CancellationToken cancellationToken)
         {
-            throw new System.NotImplementedException();
+            user.EmailConfirmed = confirmed;
+            return Task.CompletedTask;
         }
 
         public Task SetLockoutEnabledAsync(TUser user, bool enabled, CancellationToken cancellationToken)
         {
-            throw new NotImplementedException();
+            user.LockoutEnabled = enabled;
+            return Task.CompletedTask;
         }
 
         public Task SetLockoutEndDateAsync(TUser user, DateTimeOffset? lockoutEnd, CancellationToken cancellationToken)
         {
-            throw new NotImplementedException();
+            user.LockoutEnd = lockoutEnd;
+            return Task.CompletedTask;
         }
 
         public Task SetNormalizedEmailAsync(TUser user, string normalizedEmail, CancellationToken cancellationToken)
         {
-            throw new System.NotImplementedException();
+            user.NormalizedEmail = normalizedEmail;
+            return Task.CompletedTask;
         }
 
         public Task SetNormalizedUserNameAsync(TUser user, string normalizedName, CancellationToken cancellationToken)
         {
-            throw new System.NotImplementedException();
+            user.NormalizedUserName = normalizedName;
+            return Task.CompletedTask;
         }
 
         public Task SetPasswordHashAsync(TUser user, string passwordHash, CancellationToken cancellationToken)
         {
-            throw new System.NotImplementedException();
+            user.PasswordHash = passwordHash;
+            return Task.CompletedTask;
         }
 
         public Task SetPhoneNumberAsync(TUser user, string phoneNumber, CancellationToken cancellationToken)
         {
-            throw new System.NotImplementedException();
+            user.PhoneNumber = phoneNumber;
+            return Task.CompletedTask;
         }
 
         public Task SetPhoneNumberConfirmedAsync(TUser user, bool confirmed, CancellationToken cancellationToken)
         {
-            throw new System.NotImplementedException();
+            user.PhoneNumberConfirmed = confirmed;
+            return Task.CompletedTask;
         }
 
         public Task SetSecurityStampAsync(TUser user, string stamp, CancellationToken cancellationToken)
         {
-            throw new System.NotImplementedException();
+            user.SecurityStamp = stamp;
+            return Task.CompletedTask;
         }
 
         public Task SetTwoFactorEnabledAsync(TUser user, bool enabled, CancellationToken cancellationToken)
         {
-            throw new System.NotImplementedException();
+            user.TwoFactorEnabled = enabled;
+            return Task.CompletedTask;
         }
 
         public Task SetUserNameAsync(TUser user, string userName, CancellationToken cancellationToken)
         {
-            throw new System.NotImplementedException();
+            user.UserName = userName;
+            return Task.CompletedTask;
         }
 
         public Task<IdentityResult> UpdateAsync(TUser user, CancellationToken cancellationToken)
         {
-            throw new System.NotImplementedException();
+            var db = DB();
+            var _user = db.Values.ToList().Find(x => x.NormalizedUserName == user.NormalizedUserName);
+            if (_user == null)
+            {
+                // add new 
+                user.Id = Guid.NewGuid().ToString();
+                db[user.Id] = user;
+                Save(db);
+            }
+            else
+            {
+                // update
+                db[_user.Id] = user;
+                Save(db);
+            }
+            return Task.FromResult(IdentityResult.Success);
+        }
+
+        private Dictionary<string, TUser> DB()
+        {
+            var db = this.cache.Get<Dictionary<string, TUser>>("db");
+            if (db == null)
+            {
+                this.cache.Set("db", new Dictionary<string, TUser>());
+                return new Dictionary<string, TUser>();
+            }
+            return db;
+        }
+        private void Save(Dictionary<string, TUser> db)
+        {
+            this.cache.Set("db", db);
         }
     }
 }
