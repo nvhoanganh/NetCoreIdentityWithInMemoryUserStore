@@ -20,7 +20,11 @@ namespace emptymvcwithidentity
           IUserPhoneNumberStore<TUser>,
           IUserTwoFactorStore<TUser>,
           IUserLockoutStore<TUser>,
-          IUserStore<TUser>
+          IUserStore<TUser>,
+
+        IUserAuthenticationTokenStore<TUser>,
+        IUserAuthenticatorKeyStore<TUser>,
+        IUserTwoFactorRecoveryCodeStore<TUser>
           where TUser : IdentityUser
     {
         private readonly IMemoryCache cache;
@@ -52,6 +56,11 @@ namespace emptymvcwithidentity
         public Task AddToRoleAsync(TUser user, string roleName, CancellationToken cancellationToken)
         {
             throw new System.NotImplementedException();
+        }
+
+        public Task<int> CountCodesAsync(TUser user, CancellationToken cancellationToken)
+        {
+            throw new NotImplementedException();
         }
 
         public Task<IdentityResult> CreateAsync(TUser user, CancellationToken cancellationToken)
@@ -98,6 +107,11 @@ namespace emptymvcwithidentity
         public Task<int> GetAccessFailedCountAsync(TUser user, CancellationToken cancellationToken)
         {
             return Task.FromResult(user.AccessFailedCount);
+        }
+
+        public Task<string> GetAuthenticatorKeyAsync(TUser user, CancellationToken cancellationToken)
+        {
+            return null;
         }
 
         public Task<IList<Claim>> GetClaimsAsync(TUser user, CancellationToken cancellationToken)
@@ -166,6 +180,11 @@ namespace emptymvcwithidentity
             return Task.FromResult(user.SecurityStamp);
         }
 
+        public Task<string> GetTokenAsync(TUser user, string loginProvider, string name, CancellationToken cancellationToken)
+        {
+            throw new NotImplementedException();
+        }
+
         public Task<bool> GetTwoFactorEnabledAsync(TUser user, CancellationToken cancellationToken)
         {
             return Task.FromResult(user.TwoFactorEnabled);
@@ -207,6 +226,11 @@ namespace emptymvcwithidentity
             throw new System.NotImplementedException();
         }
 
+        public Task<bool> RedeemCodeAsync(TUser user, string code, CancellationToken cancellationToken)
+        {
+            throw new NotImplementedException();
+        }
+
         public Task RemoveClaimsAsync(TUser user, IEnumerable<Claim> claims, CancellationToken cancellationToken)
         {
             throw new System.NotImplementedException();
@@ -222,15 +246,30 @@ namespace emptymvcwithidentity
             throw new System.NotImplementedException();
         }
 
+        public Task RemoveTokenAsync(TUser user, string loginProvider, string name, CancellationToken cancellationToken)
+        {
+            throw new NotImplementedException();
+        }
+
         public Task ReplaceClaimAsync(TUser user, Claim claim, Claim newClaim, CancellationToken cancellationToken)
         {
             throw new System.NotImplementedException();
+        }
+
+        public Task ReplaceCodesAsync(TUser user, IEnumerable<string> recoveryCodes, CancellationToken cancellationToken)
+        {
+            throw new NotImplementedException();
         }
 
         public Task ResetAccessFailedCountAsync(TUser user, CancellationToken cancellationToken)
         {
             user.AccessFailedCount = 0;
             return Task.CompletedTask;
+        }
+
+        public Task SetAuthenticatorKeyAsync(TUser user, string key, CancellationToken cancellationToken)
+        {
+            throw new NotImplementedException();
         }
 
         public Task SetEmailAsync(TUser user, string email, CancellationToken cancellationToken)
@@ -291,6 +330,11 @@ namespace emptymvcwithidentity
         {
             user.SecurityStamp = stamp;
             return Task.CompletedTask;
+        }
+
+        public Task SetTokenAsync(TUser user, string loginProvider, string name, string value, CancellationToken cancellationToken)
+        {
+            throw new NotImplementedException();
         }
 
         public Task SetTwoFactorEnabledAsync(TUser user, bool enabled, CancellationToken cancellationToken)
