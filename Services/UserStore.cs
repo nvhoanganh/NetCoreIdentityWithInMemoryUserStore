@@ -10,6 +10,7 @@ using Microsoft.Extensions.Caching.Memory;
 
 namespace emptymvcwithidentity
 {
+
     public class InMemoryUserStore<TUser> : IUserLoginStore<TUser>,
           IUserClaimStore<TUser>,
           IUserRoleStore<TUser>,
@@ -28,7 +29,9 @@ namespace emptymvcwithidentity
           where TUser : IdentityUser
     {
         private readonly IMemoryCache cache;
-
+        private const string InternalLoginProvider = "[AspNetUserStore]";
+        private const string AuthenticatorKeyTokenName = "AuthenticatorKey";
+        private const string RecoveryCodeTokenName = "RecoveryCodes";
         public InMemoryUserStore(IMemoryCache cache)
         {
             this.cache = cache;
@@ -38,7 +41,7 @@ namespace emptymvcwithidentity
         {
             get
             {
-                var db = this.DB();
+                var db = this.UsersDb();
                 return db.Values.AsQueryable();
             }
         }
@@ -58,14 +61,19 @@ namespace emptymvcwithidentity
             throw new System.NotImplementedException();
         }
 
-        public Task<int> CountCodesAsync(TUser user, CancellationToken cancellationToken)
+        public virtual async Task<int> CountCodesAsync(TUser user, CancellationToken cancellationToken)
         {
-            throw new NotImplementedException();
+            var mergedCodes = await GetTokenAsync(user, InternalLoginProvider, RecoveryCodeTokenName, cancellationToken) ?? "";
+            if (mergedCodes.Length > 0)
+            {
+                return mergedCodes.Split(';').Length;
+            }
+            return 0;
         }
 
         public Task<IdentityResult> CreateAsync(TUser user, CancellationToken cancellationToken)
         {
-            var db = this.DB();
+            var db = this.UsersDb();
             db.Add(user.Id, user);
             Save(db);
             return Task.FromResult(IdentityResult.Success);
@@ -73,7 +81,7 @@ namespace emptymvcwithidentity
 
         public Task<IdentityResult> DeleteAsync(TUser user, CancellationToken cancellationToken)
         {
-            var db = this.DB();
+            var db = this.UsersDb();
             db.Remove(user.Id);
             Save(db);
             return Task.FromResult(IdentityResult.Success);
@@ -86,12 +94,12 @@ namespace emptymvcwithidentity
         public Task<TUser> FindByEmailAsync(string normalizedEmail, CancellationToken cancellationToken)
         {
 
-            return Task.FromResult(this.DB().Values.FirstOrDefault(x => x.NormalizedEmail == normalizedEmail));
+            return Task.FromResult(this.UsersDb().Values.FirstOrDefault(x => x.NormalizedEmail == normalizedEmail));
         }
 
         public Task<TUser> FindByIdAsync(string userId, CancellationToken cancellationToken)
         {
-            return Task.FromResult(this.DB().Values.FirstOrDefault(x => x.Id == userId));
+            return Task.FromResult(this.UsersDb().Values.FirstOrDefault(x => x.Id == userId));
         }
 
         public Task<TUser> FindByLoginAsync(string loginProvider, string providerKey, CancellationToken cancellationToken)
@@ -101,7 +109,7 @@ namespace emptymvcwithidentity
 
         public Task<TUser> FindByNameAsync(string normalizedUserName, CancellationToken cancellationToken)
         {
-            return Task.FromResult(this.DB().Values.FirstOrDefault(x => x.NormalizedUserName == normalizedUserName));
+            return Task.FromResult(this.UsersDb().Values.FirstOrDefault(x => x.NormalizedUserName == normalizedUserName));
         }
 
         public Task<int> GetAccessFailedCountAsync(TUser user, CancellationToken cancellationToken)
@@ -110,9 +118,7 @@ namespace emptymvcwithidentity
         }
 
         public Task<string> GetAuthenticatorKeyAsync(TUser user, CancellationToken cancellationToken)
-        {
-            return null;
-        }
+            => GetTokenAsync(user, InternalLoginProvider, AuthenticatorKeyTokenName, cancellationToken);
 
         public Task<IList<Claim>> GetClaimsAsync(TUser user, CancellationToken cancellationToken)
         {
@@ -180,9 +186,19 @@ namespace emptymvcwithidentity
             return Task.FromResult(user.SecurityStamp);
         }
 
+        private IdentityUserToken<string> FindToken(TUser user, string loginProvider, string name)
+        {
+            var db = this.UserTokens();
+            var token = db.FirstOrDefault(x =>
+                x.UserId == user.Id && x.Name == name && x.LoginProvider == loginProvider);
+            return token;
+        }
+
         public Task<string> GetTokenAsync(TUser user, string loginProvider, string name, CancellationToken cancellationToken)
         {
-            throw new NotImplementedException();
+            var db = this.UserTokens();
+            var token = FindToken(user, loginProvider, name);
+            return Task.FromResult(token?.Value);
         }
 
         public Task<bool> GetTwoFactorEnabledAsync(TUser user, CancellationToken cancellationToken)
@@ -226,9 +242,20 @@ namespace emptymvcwithidentity
             throw new System.NotImplementedException();
         }
 
-        public Task<bool> RedeemCodeAsync(TUser user, string code, CancellationToken cancellationToken)
+        public async Task<bool> RedeemCodeAsync(TUser user, string code, CancellationToken cancellationToken)
         {
-            throw new NotImplementedException();
+            if (code == null)
+                throw new ArgumentNullException(nameof(code));
+
+            var mergedCodes = await GetTokenAsync(user, InternalLoginProvider, RecoveryCodeTokenName, cancellationToken) ?? "";
+            var splitCodes = mergedCodes.Split(';');
+            if (splitCodes.Contains(code))
+            {
+                var updatedCodes = new List<string>(splitCodes.Where(s => s != code));
+                await ReplaceCodesAsync(user, updatedCodes, cancellationToken);
+                return true;
+            }
+            return false;
         }
 
         public Task RemoveClaimsAsync(TUser user, IEnumerable<Claim> claims, CancellationToken cancellationToken)
@@ -248,17 +275,26 @@ namespace emptymvcwithidentity
 
         public Task RemoveTokenAsync(TUser user, string loginProvider, string name, CancellationToken cancellationToken)
         {
-            throw new NotImplementedException();
+            var db = this.UserTokens();
+            var token = FindToken(user, loginProvider, name);
+            if (token != null)
+            {
+                db = db.Where(x => x.UserId != user.Id && x.LoginProvider != loginProvider && x.Name != name).ToList();
+            }
+            this.SaveTokens(db);
+            return Task.CompletedTask;
         }
+
 
         public Task ReplaceClaimAsync(TUser user, Claim claim, Claim newClaim, CancellationToken cancellationToken)
         {
             throw new System.NotImplementedException();
         }
 
-        public Task ReplaceCodesAsync(TUser user, IEnumerable<string> recoveryCodes, CancellationToken cancellationToken)
+        public virtual Task ReplaceCodesAsync(TUser user, IEnumerable<string> recoveryCodes, CancellationToken cancellationToken)
         {
-            throw new NotImplementedException();
+            var mergedCodes = string.Join(";", recoveryCodes);
+            return SetTokenAsync(user, InternalLoginProvider, RecoveryCodeTokenName, mergedCodes, cancellationToken);
         }
 
         public Task ResetAccessFailedCountAsync(TUser user, CancellationToken cancellationToken)
@@ -268,9 +304,7 @@ namespace emptymvcwithidentity
         }
 
         public Task SetAuthenticatorKeyAsync(TUser user, string key, CancellationToken cancellationToken)
-        {
-            throw new NotImplementedException();
-        }
+            => SetTokenAsync(user, InternalLoginProvider, AuthenticatorKeyTokenName, key, cancellationToken);
 
         public Task SetEmailAsync(TUser user, string email, CancellationToken cancellationToken)
         {
@@ -334,7 +368,26 @@ namespace emptymvcwithidentity
 
         public Task SetTokenAsync(TUser user, string loginProvider, string name, string value, CancellationToken cancellationToken)
         {
-            throw new NotImplementedException();
+            var db = UserTokens();
+            var token = FindToken(user, loginProvider, name);
+            if (token == null)
+            {
+                db.Add(new IdentityUserToken<string>
+                {
+                    UserId = user.Id,
+                    LoginProvider = loginProvider,
+                    Name = name,
+                    Value = value
+
+                });
+            }
+            else
+            {
+                token.Value = value;
+            }
+
+            SaveTokens(db);
+            return Task.CompletedTask;
         }
 
         public Task SetTwoFactorEnabledAsync(TUser user, bool enabled, CancellationToken cancellationToken)
@@ -351,7 +404,7 @@ namespace emptymvcwithidentity
 
         public Task<IdentityResult> UpdateAsync(TUser user, CancellationToken cancellationToken)
         {
-            var db = DB();
+            var db = UsersDb();
             var _user = db.Values.ToList().Find(x => x.NormalizedUserName == user.NormalizedUserName);
             if (_user == null)
             {
@@ -369,19 +422,33 @@ namespace emptymvcwithidentity
             return Task.FromResult(IdentityResult.Success);
         }
 
-        private Dictionary<string, TUser> DB()
+        private Dictionary<string, TUser> UsersDb()
         {
-            var db = this.cache.Get<Dictionary<string, TUser>>("db");
+            var db = this.cache.Get<Dictionary<string, TUser>>("users");
             if (db == null)
             {
-                this.cache.Set("db", new Dictionary<string, TUser>());
+                this.cache.Set("users", new Dictionary<string, TUser>());
                 return new Dictionary<string, TUser>();
             }
             return db;
         }
         private void Save(Dictionary<string, TUser> db)
         {
-            this.cache.Set("db", db);
+            this.cache.Set("users", db);
+        }
+        private List<IdentityUserToken<string>> UserTokens()
+        {
+            var db = this.cache.Get<List<IdentityUserToken<string>>>("tokens");
+            if (db == null)
+            {
+                this.cache.Set("tokens", new List<IdentityUserToken<string>>());
+                return new List<IdentityUserToken<string>>();
+            }
+            return db;
+        }
+        private void SaveTokens(List<IdentityUserToken<string>> db)
+        {
+            this.cache.Set("tokens", db);
         }
     }
 }
