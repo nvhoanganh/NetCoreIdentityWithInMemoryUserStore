@@ -4,6 +4,8 @@ using Microsoft.AspNetCore.Hosting;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
+using emptymvcwithidentity.Data;
+using Microsoft.EntityFrameworkCore;
 
 namespace emptymvcwithidentity
 {
@@ -19,6 +21,10 @@ namespace emptymvcwithidentity
         // This method gets called by the runtime. Use this method to add services to the container.
         public void ConfigureServices(IServiceCollection services)
         {
+            services.AddDbContext<ApplicationDbContext>(options =>
+                options.UseSqlite(
+                    Configuration.GetConnectionString("DefaultConnection")));
+
             services.AddDatabaseDeveloperPageExceptionFilter();
 
             services.AddDefaultIdentity<IdentityUser>(options =>
@@ -29,11 +35,7 @@ namespace emptymvcwithidentity
                 options.Password.RequireUppercase = false;
                 options.Password.RequireNonAlphanumeric = false;
             })
-            .AddUserStore<InMemoryUserStore<IdentityUser>>();
-
-            services.AddRazorPages();
-
-            services.AddMemoryCache();
+                .AddEntityFrameworkStores<ApplicationDbContext>();
         }
 
         // This method gets called by the runtime. Use this method to configure the HTTP request pipeline.
