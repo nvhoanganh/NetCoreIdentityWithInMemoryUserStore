@@ -3,6 +3,7 @@ This sample repo show how you can use custom UserStore for ASP.NET Core Identity
 For the sake of simplicity, we will use `MemoryCache` to store user information. 
 
 - create new ASP.NET MVC with individual auth by running `dotnet new webapp --auth Individual`
+- then run `dotnet aspnet-codegenerator identity -dc emptymvcwithidentity.Data.ApplicationDbContext --force` to scaffold all pages of ASP .NET Identity
 - edit `startup.cs` and remove `.AddEntityFrameworkStores<ApplicationDbContext>();` and `services.AddDbContext<ApplicationDbContext>()` call
 - add new `InMemoryUserStore.cs` file which implements all Identity Interfaces
 - add implementations using `IMemoryCache`
